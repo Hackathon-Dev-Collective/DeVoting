@@ -1,8 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-contract DeVoting {
-    constructor() {}
+import "openzeppelin-contracts/contracts/access/Ownable.sol";
+import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+
+contract DeVoting is Ownable {
+    ERC20 public contractToken;
+    address public ownerAddress;
+
+    constructor(address _contractToken) Ownable(msg.sender) {
+        contractToken = ERC20(_contractToken);
+        // it needs owner approve this contract to use token.
+        ownerAddress = msg.sender;
+    }
 
     struct VoteDetails {
         string topic;
@@ -19,6 +29,12 @@ contract DeVoting {
         uint256 validUntil; // Attestation的有效期
     }
 
+    /* attestation module */
+    mapping(address => Attestation) public attestations;
+
+    event AttestationSubmit(address indexed owner, string identifier, uint256 validUntil);
+    event AttestationRevoke(address owner);
+
     /* vote module */
     uint256 public voteId = 0;
     mapping(uint256 => VoteDetails) public votes;
@@ -28,12 +44,10 @@ contract DeVoting {
     event VoteUpdate(uint256 indexed voteId, uint256 endTime);
     event VoteSubmit(uint256 indexed voteId, uint256 optionIndex, uint256 optionCount, address submitor);
 
+    /* token module */
+    event RewardsDistribute(address userAddress, uint256 amount);
+
     /* attestation module */
-    mapping(address => Attestation) public attestations;
-
-    event AttestationSubmit(address indexed owner, string identifier, uint256 validUntil);
-    event AttestationRevoke(address owner);
-
     function submitAttestation(string memory _identifier, uint256 _validUntil) public {
         require(_validUntil > block.timestamp, "attestation must valid tiem must more than now");
 
@@ -46,7 +60,7 @@ contract DeVoting {
 
     function verifyAttestation() public view returns (bool) {
         Attestation storage attestation = attestations[msg.sender];
-        return attestation.validUntil > block.timestamp;
+        return attestation.validUntil > block.timestamp && bytes(attestation.identifier).length > 0;
     }
 
     function revokeAttestation() public {
@@ -54,13 +68,14 @@ contract DeVoting {
         emit AttestationRevoke(msg.sender);
     }
 
+    /* vote module */
     function createVote(string memory _topic, string[] memory _options, uint256 _endTimestampSeconds)
         public
         returns (uint256)
     {
         // require(isAttestationValid());
 
-        require(_options.length > 2, "at least have two choice");
+        require(_options.length >= 2, "at least have two choice");
 
         require(_endTimestampSeconds > block.timestamp, "at least _endTimestampSeconds more than now time");
 
@@ -89,7 +104,7 @@ contract DeVoting {
             uint256 _endTime
         )
     {
-        require(_voteId > 0 && _voteId < voteId, "vote Id is invalid");
+        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
         require(votes[_voteId].exist, "vote is not exist");
 
         VoteDetails storage vote = votes[_voteId];
@@ -99,7 +114,8 @@ contract DeVoting {
 
     function closeVote(uint256 _voteId) public returns (bool) {
         // require(isAttestationValid());
-        require(_voteId > 0 && _voteId < voteId, "vote Id is invalid");
+        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
+
         require(votes[_voteId].exist, "vote is not exist");
         votes[_voteId].exist = false;
         emit VoteClose(_voteId);
@@ -108,7 +124,8 @@ contract DeVoting {
 
     function updateVote(uint256 _voteId, uint256 _endTime) public returns (bool) {
         // require(isAttestationValid());
-        require(_voteId > 0 && _voteId < voteId, "vote Id is invalid");
+        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
+
         require(votes[_voteId].exist, "vote is not exist");
         require(block.timestamp < votes[_voteId].endTime, "this vote is end");
         require(_endTime > block.timestamp, "modify time must more than block.timestamp");
@@ -120,10 +137,11 @@ contract DeVoting {
 
     function submitVote(uint256 _voteId, uint256 _optionIndex, uint256 _optionCount) public returns (bool) {
         // require(isAttestationValid());
-        require(_voteId > 0 && _voteId < voteId, "vote Id is invalid");
+        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
+
         require(_optionCount > 0, "option Count must more than zero");
         VoteDetails storage vote = votes[_voteId];
-        require(vote.usersVotedCount[msg.sender] > 0, "user voted");
+        require(vote.usersVotedCount[msg.sender] == 0, "user has already voted");
         require(vote.exist, "vote is not exist");
         require(block.timestamp < vote.endTime, "this vote is end");
         require(_optionIndex >= 0 && _optionIndex < vote.options.length, "_optionIndex is invalid");
@@ -136,8 +154,19 @@ contract DeVoting {
 
     function checkIfUserVoted(uint256 _voteId) public view returns (bool) {
         // require(isAttestationValid());
-        require(_voteId > 0 && _voteId < voteId, "vote Id is invalid");
+        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
+
         VoteDetails storage vote = votes[_voteId];
         return vote.usersVotedCount[msg.sender] > 0;
+    }
+
+    /* token module */
+    function distributeRewards(address to, uint256 amount) public onlyOwner {
+        contractToken.transferFrom(ownerAddress, to, amount);
+        emit RewardsDistribute(to, amount);
+    }
+
+    function getUserRewardBalance(address user) public view returns (uint256) {
+        return contractToken.balanceOf(user);
     }
 }

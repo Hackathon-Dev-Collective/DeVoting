@@ -12,7 +12,7 @@ contract DeVotingScript is Script {
     function run() public {
         vm.startBroadcast();
 
-        counter = new DeVoting();
+        counter = new DeVoting(address(0x00));
 
         vm.stopBroadcast();
     }
