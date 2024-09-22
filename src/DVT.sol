@@ -10,7 +10,7 @@ contract DVT is ERC20, Ownable {
         _mint(msg.sender, 10000000000 * 10 ** 18); // 初始发行100亿代币
     }
 
-    function mint(address to, uint256 amount) public {
+    function mint(address to, uint256 amount) public onlyOwner() {
         _mint(to, amount);
     }
 }
