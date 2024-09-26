@@ -14,6 +14,12 @@ contract DeVoting is Ownable {
         ownerAddress = msg.sender;
     }
 
+    struct UserVotedInfo {
+        uint256 count;
+        string option;
+        uint256 voteTime;
+    }
+
     struct VoteDetails {
         string topic;
         string[] options;
@@ -21,8 +27,7 @@ contract DeVoting is Ownable {
         address creator;
         uint256 endTime;
         bool exist;
-        mapping(address => uint256) usersVotedCount;
-        mapping(address => uint256) usersVotedIndex;
+        mapping(address => UserVotedInfo) userVotedInfos;
     }
 
     struct Attestation {
@@ -44,6 +49,7 @@ contract DeVoting is Ownable {
     event VoteClose(uint256 indexed voteId);
     event VoteUpdate(uint256 indexed voteId, uint256 endTime);
     event VoteSubmit(uint256 indexed voteId, uint256 optionIndex, uint256 optionCount, address submitor);
+    event VoteUserInfo(uint256 count, string option, uint256 voteTime);
 
     /* token module */
     event RewardsDistribute(address userAddress, uint256 amount);
@@ -142,14 +148,20 @@ contract DeVoting is Ownable {
 
         require(_optionCount > 0, "option Count must more than zero");
         VoteDetails storage vote = votes[_voteId];
-        require(vote.usersVotedCount[msg.sender] == 0, "user has already voted");
+        UserVotedInfo storage voteInfos = vote.userVotedInfos[msg.sender];
+        require(
+            voteInfos.count == 0 && bytes(voteInfos.option).length == 0 && voteInfos.voteTime == 0,
+            "user has already voted"
+        );
         require(vote.exist, "vote is not exist");
         require(block.timestamp < vote.endTime, "this vote is end");
         require(_optionIndex >= 0 && _optionIndex < vote.options.length, "_optionIndex is invalid");
 
+        voteInfos.count = _optionCount;
+        voteInfos.option = vote.options[_optionIndex];
+        voteInfos.voteTime = block.timestamp;
+        emit VoteUserInfo(voteInfos.count, voteInfos.option, voteInfos.voteTime);
         vote.optionsCount[_optionIndex] += _optionCount;
-        vote.usersVotedCount[msg.sender] = _optionCount;
-        vote.usersVotedIndex[msg.sender] = _optionIndex;
         emit VoteSubmit(_voteId, _optionIndex, _optionCount, msg.sender);
         return true;
     }
@@ -159,14 +171,22 @@ contract DeVoting is Ownable {
         require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
 
         VoteDetails storage vote = votes[_voteId];
-        return vote.usersVotedCount[msg.sender] > 0;
+        UserVotedInfo storage voteInfos = vote.userVotedInfos[msg.sender];
+        // emit VoteUserInfo(voteInfos.count, voteInfos.option, voteInfos.voteTime);
+        return !(voteInfos.count == 0 && bytes(voteInfos.option).length == 0 && voteInfos.voteTime == 0);
     }
 
-    function getVotedInfo(uint256 _voteId) public view returns (uint256 choiceIndex, uint256 choseCount) {
+    function getVotedInfo(uint256 _voteId)
+        public
+        view
+        returns (string memory choice, uint256 choseCount, uint256 timeStamp)
+    {
         require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
 
         VoteDetails storage vote = votes[_voteId];
-        return (vote.usersVotedIndex[msg.sender], vote.usersVotedCount[msg.sender]);
+        UserVotedInfo storage voteInfos = vote.userVotedInfos[msg.sender];
+        // emit VoteUserInfo(voteInfos.count, voteInfos.option, voteInfos.voteTime);
+        return (voteInfos.option, voteInfos.count, voteInfos.voteTime);
     }
 
     /* token module */
