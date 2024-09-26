@@ -78,6 +78,9 @@ contract DeVotingTest is Test {
         vm.prank(user2);
         devoting.submitVote(voteId, 0, 1); // 给 Option 1 投 1 票
 
+        vm.prank(user2);
+        assertEq(devoting.checkIfUserVoted(voteId), true);
+
         // 检查 Option 1 的投票计数是否更新
         (,, uint256[] memory optionsCount,,) = devoting.getVote(voteId);
         assertEq(optionsCount[0], 1);

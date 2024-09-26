@@ -22,6 +22,7 @@ contract DeVoting is Ownable {
         uint256 endTime;
         bool exist;
         mapping(address => uint256) usersVotedCount;
+        mapping(address => uint256) usersVotedIndex;
     }
 
     struct Attestation {
@@ -148,6 +149,7 @@ contract DeVoting is Ownable {
 
         vote.optionsCount[_optionIndex] += _optionCount;
         vote.usersVotedCount[msg.sender] = _optionCount;
+        vote.usersVotedIndex[msg.sender] = _optionIndex;
         emit VoteSubmit(_voteId, _optionIndex, _optionCount, msg.sender);
         return true;
     }
@@ -158,6 +160,13 @@ contract DeVoting is Ownable {
 
         VoteDetails storage vote = votes[_voteId];
         return vote.usersVotedCount[msg.sender] > 0;
+    }
+
+    function getVotedInfo(uint256 _voteId) public view returns (uint256 choiceIndex, uint256 choseCount) {
+        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
+
+        VoteDetails storage vote = votes[_voteId];
+        return (vote.usersVotedIndex[msg.sender], vote.usersVotedCount[msg.sender]);
     }
 
     /* token module */
