@@ -4,7 +4,6 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "../src/DeVoting.sol";
 import "../src/DVT.sol";
-import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 
 contract DeVotingTest is Test {
     DeVoting devoting;

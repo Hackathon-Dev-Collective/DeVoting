@@ -2,14 +2,14 @@
 pragma solidity ^0.8.20;
 
 import "openzeppelin-contracts/contracts/access/Ownable.sol";
-import "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
 contract DeVoting is Ownable {
-    ERC20 public contractToken;
+    IERC20 public contractToken;
     address public ownerAddress;
 
     constructor(address _contractToken) Ownable(msg.sender) {
-        contractToken = ERC20(_contractToken);
+        contractToken = IERC20(_contractToken);
         // it needs owner approve this contract to use token.
         ownerAddress = msg.sender;
     }
@@ -51,6 +51,11 @@ contract DeVoting is Ownable {
     event VoteSubmit(uint256 indexed voteId, uint256 optionIndex, uint256 optionCount, address submitor);
     event VoteUserInfo(uint256 count, string option, uint256 voteTime);
 
+    modifier checkVoteIdValid(uint256 _voteId) {
+        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
+        _;
+    }
+
     /* token module */
     event RewardsDistribute(address userAddress, uint256 amount);
 
@@ -65,8 +70,8 @@ contract DeVoting is Ownable {
         emit AttestationSubmit(msg.sender, _identifier, _validUntil);
     }
 
-    function verifyAttestation() public view returns (bool) {
-        Attestation storage attestation = attestations[msg.sender];
+    function verifyAttestation(address user) public view returns (bool) {
+        Attestation storage attestation = attestations[user];
         return attestation.validUntil > block.timestamp && bytes(attestation.identifier).length > 0;
     }
 
@@ -103,6 +108,7 @@ contract DeVoting is Ownable {
     function getVote(uint256 _voteId)
         public
         view
+        checkVoteIdValid(_voteId)
         returns (
             string memory _topic,
             string[] memory _options,
@@ -111,7 +117,6 @@ contract DeVoting is Ownable {
             uint256 _endTime
         )
     {
-        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
         require(votes[_voteId].exist, "vote is not exist");
 
         VoteDetails storage vote = votes[_voteId];
@@ -119,20 +124,16 @@ contract DeVoting is Ownable {
         return (vote.topic, vote.options, vote.optionsCount, vote.creator, vote.endTime);
     }
 
-    function closeVote(uint256 _voteId) public returns (bool) {
+    function closeVote(uint256 _voteId) public checkVoteIdValid(_voteId) returns (bool) {
         // require(isAttestationValid());
-        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
-
         require(votes[_voteId].exist, "vote is not exist");
         votes[_voteId].exist = false;
         emit VoteClose(_voteId);
         return true;
     }
 
-    function updateVote(uint256 _voteId, uint256 _endTime) public returns (bool) {
+    function updateVote(uint256 _voteId, uint256 _endTime) public checkVoteIdValid(_voteId) returns (bool) {
         // require(isAttestationValid());
-        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
-
         require(votes[_voteId].exist, "vote is not exist");
         require(block.timestamp < votes[_voteId].endTime, "this vote is end");
         require(_endTime > block.timestamp, "modify time must more than block.timestamp");
@@ -142,10 +143,12 @@ contract DeVoting is Ownable {
         return true;
     }
 
-    function submitVote(uint256 _voteId, uint256 _optionIndex, uint256 _optionCount) public returns (bool) {
+    function submitVote(uint256 _voteId, uint256 _optionIndex, uint256 _optionCount)
+        public
+        checkVoteIdValid(_voteId)
+        returns (bool)
+    {
         // require(isAttestationValid());
-        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
-
         require(_optionCount > 0, "option Count must more than zero");
         VoteDetails storage vote = votes[_voteId];
         UserVotedInfo storage voteInfos = vote.userVotedInfos[msg.sender];
@@ -166,26 +169,21 @@ contract DeVoting is Ownable {
         return true;
     }
 
-    function checkIfUserVoted(uint256 _voteId) public view returns (bool) {
+    function checkIfUserVoted(uint256 _voteId, address user) public view checkVoteIdValid(_voteId) returns (bool) {
         // require(isAttestationValid());
-        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
-
         VoteDetails storage vote = votes[_voteId];
-        UserVotedInfo storage voteInfos = vote.userVotedInfos[msg.sender];
-        // emit VoteUserInfo(voteInfos.count, voteInfos.option, voteInfos.voteTime);
+        UserVotedInfo storage voteInfos = vote.userVotedInfos[user];
         return !(voteInfos.count == 0 && bytes(voteInfos.option).length == 0 && voteInfos.voteTime == 0);
     }
 
-    function getVotedInfo(uint256 _voteId)
+    function getVotedInfo(uint256 _voteId, address user)
         public
         view
+        checkVoteIdValid(_voteId)
         returns (string memory choice, uint256 choseCount, uint256 timeStamp)
     {
-        require(_voteId > 0 && _voteId <= voteId, "vote Id is invalid");
-
         VoteDetails storage vote = votes[_voteId];
-        UserVotedInfo storage voteInfos = vote.userVotedInfos[msg.sender];
-        // emit VoteUserInfo(voteInfos.count, voteInfos.option, voteInfos.voteTime);
+        UserVotedInfo storage voteInfos = vote.userVotedInfos[user];
         return (voteInfos.option, voteInfos.count, voteInfos.voteTime);
     }
 
