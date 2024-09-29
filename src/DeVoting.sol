@@ -5,7 +5,7 @@ import "openzeppelin-contracts/contracts/access/Ownable.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
 contract DeVoting is Ownable {
-    uint256 private rewardCount = 100;
+    uint256 public rewardCount = 100;
     IERC20 public contractToken;
     address public ownerAddress;
 
