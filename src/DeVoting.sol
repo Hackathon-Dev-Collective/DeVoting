@@ -5,6 +5,7 @@ import "openzeppelin-contracts/contracts/access/Ownable.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
 contract DeVoting is Ownable {
+    uint256 private rewardCount = 100;
     IERC20 public contractToken;
     address public ownerAddress;
 
@@ -34,6 +35,8 @@ contract DeVoting is Ownable {
         string identifier; // 用户身份标识（例如某种唯一标识）
         uint256 validUntil; // Attestation的有效期
     }
+
+    mapping(uint256 => mapping(address => bool)) private voteAllowance;
 
     /* attestation module */
     mapping(address => Attestation) public attestations;
@@ -101,6 +104,7 @@ contract DeVoting is Ownable {
         newVote.creator = msg.sender;
         newVote.endTime = _endTimestampSeconds;
         newVote.exist = true;
+        voteAllowance[voteId][msg.sender] = true;
         emit VoteCreate(voteId, _topic, _endTimestampSeconds, msg.sender);
         return voteId;
     }
@@ -132,6 +136,10 @@ contract DeVoting is Ownable {
         return true;
     }
 
+    function changeRewardCount(uint256 _rewardCount) public onlyOwner {
+        rewardCount = _rewardCount;
+    }
+
     function updateVote(uint256 _voteId, uint256 _endTime) public checkVoteIdValid(_voteId) returns (bool) {
         // require(isAttestationValid());
         require(votes[_voteId].exist, "vote is not exist");
@@ -150,6 +158,7 @@ contract DeVoting is Ownable {
     {
         // require(isAttestationValid());
         require(_optionCount > 0, "option Count must more than zero");
+        require(voteAllowance[_voteId][msg.sender], "you are not allow to vote this");
         VoteDetails storage vote = votes[_voteId];
         UserVotedInfo storage voteInfos = vote.userVotedInfos[msg.sender];
         require(
@@ -166,6 +175,25 @@ contract DeVoting is Ownable {
         emit VoteUserInfo(voteInfos.count, voteInfos.option, voteInfos.voteTime);
         vote.optionsCount[_optionIndex] += _optionCount;
         emit VoteSubmit(_voteId, _optionIndex, _optionCount, msg.sender);
+        if (ownerAddress != msg.sender) {
+            contractToken.transferFrom(ownerAddress, msg.sender, rewardCount);
+            emit RewardsDistribute(msg.sender, rewardCount);
+        }
+        return true;
+    }
+
+    function checkIfUserHavaAllowance(uint256 _voteId, address user)
+        public
+        view
+        checkVoteIdValid(_voteId)
+        returns (bool)
+    {
+        return voteAllowance[_voteId][user];
+    }
+
+    function inviteUserVote(uint256 _voteId, address user) public checkVoteIdValid(_voteId) returns (bool) {
+        require(voteAllowance[_voteId][msg.sender], "invitor must have allowance");
+        voteAllowance[_voteId][user] = true;
         return true;
     }
 

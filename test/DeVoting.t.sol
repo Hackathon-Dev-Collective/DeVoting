@@ -71,10 +71,10 @@ contract DeVotingTest is Test {
         uint256 voteId = devoting.createVote("Test Topic", options, block.timestamp + 1 days);
 
         // 模拟 user2 提交 attestation 并投票
-        vm.prank(user2);
+        vm.prank(user1);
         devoting.submitAttestation("user2-identifier", block.timestamp + 1 days);
 
-        vm.prank(user2);
+        vm.prank(user1);
         devoting.submitVote(voteId, 0, 1); // 给 Option 1 投 1 票
 
         // vm.prank(user2);
